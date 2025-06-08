@@ -40,7 +40,7 @@
 
     <div class="flex h-screen">
         <!-- Sidebar -->
-        <aside class="w-64 bg-white dark:bg-slate-900 flex flex-col border-r border-slate-200 dark:border-slate-800">
+        <aside class="w-64 bg-white dark:bg-slate-900 flex flex-col border-r border-slate-200 dark:border-slate-800 flex-shrink-0">
             <div class="p-6 text-2xl font-bold text-primary-500">
                 FairyGlow
             </div>
@@ -71,10 +71,12 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 p-8 overflow-y-auto">
-            <h1 id="main-title" class="text-3xl font-bold mb-8">Dashboard</h1>
-            <div id="main-content">
-                <!-- Content will be rendered here by JavaScript -->
+        <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+             <div class="max-w-7xl mx-auto">
+                <h1 id="main-title" class="text-3xl font-bold mb-8">Dashboard</h1>
+                <div id="main-content">
+                    <!-- Content will be rendered here by JavaScript -->
+                </div>
             </div>
         </main>
     </div>
@@ -88,9 +90,12 @@
                 currentPage: 'dashboard'
             },
             
+            DOM: {}, // Centralized DOM cache
+            Charts: {}, // Centralized Chart instances
+
             init() {
                 this.cacheDOMElements();
-                this.attachEventListeners();
+                this.Events.attachAll(this);
                 if (this.state.theme === 'dark') {
                     document.documentElement.classList.add('dark');
                 }
@@ -98,65 +103,25 @@
             },
 
             cacheDOMElements() {
-                this.DOM = {
-                    mainTitleEl: document.getElementById('main-title'),
-                    mainContentEl: document.getElementById('main-content'),
-                    sidebarNavEl: document.getElementById('sidebar-nav'),
-                    themeToggleBtn: document.getElementById('theme-toggle-btn')
-                };
+                this.DOM.mainTitleEl = document.getElementById('main-title');
+                this.DOM.mainContentEl = document.getElementById('main-content');
+                this.DOM.sidebarNavEl = document.getElementById('sidebar-nav');
+                this.DOM.themeToggleBtn = document.getElementById('theme-toggle-btn');
             },
-            
+
             setState(newState) {
-                this.state = { ...this.state, ...newState };
+                Object.assign(this.state, newState);
                 this.render();
             },
 
             render() {
-                this.updateActiveLink();
-                this.renderPageContent();
+                this.UI.updateActiveLink(this.DOM.sidebarNavEl, this.state.currentPage);
+                this.UI.renderPageContent(this);
                 lucide.createIcons();
-            },
-            
-            updateActiveLink() {
-                this.DOM.sidebarNavEl.querySelectorAll('.sidebar-link').forEach(link => {
-                    link.classList.toggle('active', link.dataset.page === this.state.currentPage);
-                });
-            },
-
-            renderPageContent() {
-                const pageTitle = this.state.currentPage.charAt(0).toUpperCase() + this.state.currentPage.slice(1);
-                this.DOM.mainTitleEl.textContent = pageTitle;
-
-                const contentRenderers = {
-                    dashboard: UI.renderDashboard,
-                    products: UI.renderProductsPage,
-                    orders: UI.renderOrdersPage,
-                    customers: UI.renderCustomersPage,
-                    marketing: UI.renderMarketingPage
-                };
-
-                const renderer = contentRenderers[this.state.currentPage] || UI.renderDashboard;
-                renderer.call(UI, this.DOM.mainContentEl, this.state.theme);
-            },
-            
-            attachEventListeners() {
-                this.DOM.themeToggleBtn.addEventListener('click', () => {
-                    const newTheme = this.state.theme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-                    this.setState({ theme: newTheme });
-                });
-
-                this.DOM.sidebarNavEl.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const link = e.target.closest('.sidebar-link');
-                    if (link && link.dataset.page) {
-                        this.setState({ currentPage: link.dataset.page });
-                    }
-                });
             }
         };
 
-        const Data = {
+        App.Data = {
             customers: [
                 {id: 1, name: 'Rani Desai', email: 'rani.desai@email.com', segment: 'VIP'}, {id: 2, name: 'Carmen Diaz', email: 'carmen.diaz@email.com', segment: 'New'}, {id: 3, name: 'Wei Hua', email: 'wei.hua@email.com', segment: 'Frequent'},
                 {id: 4, name: 'Alexei Volkov', email: 'alexei.volkov@email.com', segment: 'New'}, {id: 5, name: 'Kiran Joshi', email: 'kiran.joshi@email.com', segment: 'At-Risk'}, {id: 6, name: 'Natalia Lopez', email: 'natalia.lopez@email.com', segment: 'VIP'},
@@ -204,10 +169,62 @@
                 {id: 3, name: 'Summer Glow Kit', reach: 5000, conversionRate: 0.02, roas: 2.1, status: 'Upcoming'},
             ]
         };
+        
+        App.UI = {
+            updateActiveLink(sidebarNavEl, currentPage) {
+                sidebarNavEl.querySelectorAll('.sidebar-link').forEach(link => {
+                    link.classList.toggle('active', link.dataset.page === currentPage);
+                });
+            },
 
-        const UI = {
-            renderDashboard(container, theme) {
-                container.innerHTML = `
+            renderPageContent(appInstance) {
+                const { mainTitleEl, mainContentEl } = appInstance.DOM;
+                const { currentPage, theme } = appInstance.state;
+                const { Data, Charts } = appInstance;
+                
+                mainTitleEl.textContent = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+                
+                const renderer = this.pageRenderers[currentPage] || this.pageRenderers.dashboard;
+                renderer.call(this, mainContentEl, theme, Data, Charts);
+            },
+            
+            pageRenderers: {
+                dashboard(container, theme, data, charts) {
+                    container.innerHTML = this.getDashboardHTML();
+                    this.calculateKPIs(data);
+                    this.populateDashboardTables(data);
+                    this.renderSalesChart(theme, charts);
+                    this.renderCategoryChart(theme, data, charts);
+                },
+                products(container, theme, data) {
+                    const headers = ['ID', 'Name', 'Category', 'Price', 'Stock', 'Sales Velocity'];
+                    const rows = data.products.map(p => {
+                        const category = data.categories.find(c => c.id === p.categoryId)?.name || 'N/A';
+                        return [p.id, p.name, category, `$${p.price.toFixed(2)}`, p.stock, p.salesVelocity];
+                    });
+                    container.innerHTML = this.renderGenericTable(headers, rows);
+                },
+                orders(container, theme, data) {
+                     const headers = ['Order ID', 'Customer', 'Date', 'Total', 'Source'];
+                     const rows = data.orders.map(o => {
+                        const customer = data.customers.find(c => c.id === o.customerId)?.name || 'N/A';
+                        return [o.id, customer, o.date, `$${o.total.toFixed(2)}`, o.source];
+                    });
+                    container.innerHTML = this.renderGenericTable(headers, rows);
+                },
+                customers(container, theme, data) {
+                    const headers = ['Customer ID', 'Name', 'Email', 'Segment'];
+                    const rows = data.customers.map(c => [c.id, c.name, c.email, c.segment]);
+                    container.innerHTML = this.renderGenericTable(headers, rows);
+                },
+                marketing(container, theme, data, charts) {
+                    container.innerHTML = this.getMarketingHTML(data);
+                    this.renderSegmentChart(theme, data.customers, charts);
+                }
+            },
+            
+            getDashboardHTML() {
+                 return `
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg flex items-center">
                             <div class="p-3 rounded-full bg-green-100 dark:bg-green-500/20 mr-4"><i data-lucide="dollar-sign" class="h-6 w-6 text-green-600 dark:text-green-400"></i></div>
@@ -234,52 +251,14 @@
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg"><h3 class="font-bold text-lg mb-4">Low Stock Items</h3><div id="low-stock-table" class="space-y-2"></div></div>
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg"><h3 class="font-bold text-lg mb-4">Recent Customer Reviews</h3><div id="reviews-table" class="space-y-4"></div></div>
                     </div>`;
-                this.calculateKPIs();
-                this.populateDashboardTables();
-                this.renderSalesChart(theme);
-                this.renderCategoryChart(theme);
             },
             
-            renderGenericTable(headers, rows) {
+            getMarketingHTML(data) {
                 return `
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="border-b border-slate-200 dark:border-slate-700"><tr>${headers.map(h => `<th class="p-3 font-semibold">${h}</th>`).join('')}</tr></thead>
-                            <tbody>${rows.map(row => `<tr class="border-b border-slate-100 dark:border-slate-800 last:border-b-0">${row.map(cell => `<td class="p-3">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
-                        </table>
-                    </div>`;
-            },
-
-            renderProductsPage(container) {
-                const headers = ['ID', 'Name', 'Category', 'Price', 'Stock', 'Sales Velocity'];
-                const rows = Data.products.map(p => {
-                    const category = Data.categories.find(c => c.id === p.categoryId)?.name || 'N/A';
-                    return [p.id, p.name, category, `$${p.price.toFixed(2)}`, p.stock, p.salesVelocity];
-                });
-                container.innerHTML = this.renderGenericTable(headers, rows);
-            },
-
-            renderOrdersPage(container) {
-                 const headers = ['Order ID', 'Customer', 'Date', 'Total', 'Source'];
-                 const rows = Data.orders.map(o => {
-                    const customer = Data.customers.find(c => c.id === o.customerId)?.name || 'N/A';
-                    return [o.id, customer, o.date, `$${o.total.toFixed(2)}`, o.source];
-                });
-                container.innerHTML = this.renderGenericTable(headers, rows);
-            },
-
-            renderCustomersPage(container) {
-                const headers = ['Customer ID', 'Name', 'Email', 'Segment'];
-                const rows = Data.customers.map(c => [c.id, c.name, c.email, c.segment]);
-                container.innerHTML = this.renderGenericTable(headers, rows);
-            },
-
-            renderMarketingPage(container, theme) {
-                container.innerHTML = `
                      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg">
                             <h3 class="font-bold text-lg mb-4">Campaign Performance</h3>
-                            ${Data.campaigns.map(c => `
+                            ${data.campaigns.map(c => `
                                 <div class="mb-4 p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50">
                                     <div class="flex justify-between items-center mb-2">
                                         <p class="font-bold">${c.name}</p>
@@ -298,22 +277,31 @@
                              <canvas id="segment-chart"></canvas>
                         </div>
                     </div>`;
-                this.renderSegmentChart(theme);
             },
 
-            calculateKPIs() {
-                document.getElementById('total-revenue').textContent = `$${Data.orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}`;
-                document.getElementById('total-sales').textContent = Data.orders.length;
-                document.getElementById('new-customers').textContent = Data.customers.length;
-                const totalRating = Data.reviews.reduce((sum, review) => sum + review.rating, 0);
-                document.getElementById('avg-rating').textContent = (totalRating / Data.reviews.length).toFixed(1);
+            renderGenericTable(headers, rows) {
+                return `
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-lg overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="border-b border-slate-200 dark:border-slate-700"><tr>${headers.map(h => `<th class="p-3 font-semibold">${h}</th>`).join('')}</tr></thead>
+                            <tbody>${rows.map(row => `<tr class="border-b border-slate-100 dark:border-slate-800 last:border-b-0">${row.map(cell => `<td class="p-3">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+                        </table>
+                    </div>`;
             },
 
-            populateDashboardTables() {
+            calculateKPIs(data) {
+                document.getElementById('total-revenue').textContent = `$${data.orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}`;
+                document.getElementById('total-sales').textContent = data.orders.length;
+                document.getElementById('new-customers').textContent = data.customers.length;
+                const totalRating = data.reviews.reduce((sum, review) => sum + review.rating, 0);
+                document.getElementById('avg-rating').textContent = (totalRating / data.reviews.length).toFixed(1);
+            },
+
+            populateDashboardTables(data) {
                 const lowStockTableEl = document.getElementById('low-stock-table');
                 const reviewsTableEl = document.getElementById('reviews-table');
                 
-                const lowStockItems = Data.products.filter(p => p.stock < 50);
+                const lowStockItems = data.products.filter(p => p.stock < 50);
                 lowStockTableEl.innerHTML = lowStockItems.map(item => `
                     <div class="flex justify-between items-center text-sm p-2 rounded-md even:bg-slate-100 dark:even:bg-slate-800/50">
                         <span>${item.name}</span>
@@ -321,9 +309,9 @@
                     </div>
                 `).join('');
 
-                reviewsTableEl.innerHTML = Data.reviews.map(review => {
-                    const product = Data.products.find(p => p.id === review.productId);
-                    const customer = Data.customers.find(c => c.id === review.customerId);
+                reviewsTableEl.innerHTML = data.reviews.map(review => {
+                    const product = data.products.find(p => p.id === review.productId);
+                    const customer = data.customers.find(c => c.id === review.customerId);
                     return `
                         <div class="p-3 rounded-md bg-slate-100 dark:bg-slate-800/50">
                             <div class="flex justify-between items-center">
@@ -336,13 +324,13 @@
                 }).join('');
             },
             
-            renderSalesChart(theme) {
+            renderSalesChart(theme, charts) {
                 const ctx = document.getElementById('sales-chart').getContext('2d');
                 const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
                 const gridColor = theme === 'dark' ? '#334155' : '#e2e8f0';
 
-                if (window.salesChart) window.salesChart.destroy();
-                window.salesChart = new Chart(ctx, {
+                if (charts.sales) charts.sales.destroy();
+                charts.sales = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -352,16 +340,16 @@
                 });
             },
 
-            renderCategoryChart(theme) {
+            renderCategoryChart(theme, data, charts) {
                 const ctx = document.getElementById('category-chart').getContext('2d');
-                if (window.categoryChart) window.categoryChart.destroy();
-                const categoryData = Data.products.reduce((acc, p) => {
-                    const category = Data.categories.find(c => c.id === p.categoryId)?.name || 'Other';
+                if (charts.category) charts.category.destroy();
+                const categoryData = data.products.reduce((acc, p) => {
+                    const category = data.categories.find(c => c.id === p.categoryId)?.name || 'Other';
                     acc[category] = (acc[category] || 0) + 1;
                     return acc;
                 }, {});
 
-                window.categoryChart = new Chart(ctx, {
+                charts.category = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: Object.keys(categoryData),
@@ -371,21 +359,39 @@
                 });
             },
             
-            renderSegmentChart(theme) {
+            renderSegmentChart(theme, customers, charts) {
                 const ctx = document.getElementById('segment-chart').getContext('2d');
-                if (window.segmentChart) window.segmentChart.destroy();
-                const segmentData = Data.customers.reduce((acc, c) => {
+                if (charts.segment) charts.segment.destroy();
+                const segmentData = customers.reduce((acc, c) => {
                     acc[c.segment] = (acc[c.segment] || 0) + 1;
                     return acc;
                 }, {});
                 
-                window.segmentChart = new Chart(ctx, {
+                charts.segment = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: Object.keys(segmentData),
                         datasets: [{ data: Object.values(segmentData), backgroundColor: ['#db2777', '#06b6d4', '#f59e0b', '#22c55e'], borderColor: theme === 'dark' ? '#1e293b' : '#fff', borderWidth: 2 }]
                     },
                      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: theme === 'dark' ? '#94a3b8' : '#64748b' } } } }
+                });
+            }
+        };
+
+        App.Events = {
+            attachAll(appInstance) {
+                appInstance.DOM.themeToggleBtn.addEventListener('click', () => {
+                    const newTheme = appInstance.state.theme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+                    appInstance.setState({ theme: newTheme });
+                });
+
+                appInstance.DOM.sidebarNavEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const link = e.target.closest('.sidebar-link');
+                    if (link && link.dataset.page) {
+                        appInstance.setState({ currentPage: link.dataset.page });
+                    }
                 });
             }
         };
