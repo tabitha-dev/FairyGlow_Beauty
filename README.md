@@ -14,6 +14,13 @@
 
 ---
 
+## 🚀 Live Demo
+
+You can try out the live prototype here: 
+**[https://tabitha-dev.github.io/FairyGlow_Beauty/](https://tabitha-dev.github.io/FairyGlow_Beauty/)**
+
+---
+
 ## 💡 About This Project
 
 This project brings to life a database systems assignment from my Master's program at the University of the People. The original assignment involved designing a robust database for a fictional beauty retailer, "FairyGlow Beauty." I decided to expand on this by creating a functional front-end prototype to visualize how the business would interact with that data.
@@ -50,11 +57,11 @@ No complex build steps required! Since this is a pure front-end project, you can
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/tabitha-dev/FairyGlow-Beauty-prototype.git](https://github.com/tabitha-dev/FairyGlow-Beauty-prototype.git)
+    git clone [https://github.com/tabitha-dev/FairyGlow_Beauty.git](https://github.com/tabitha-dev/FairyGlow_Beauty.git)
     ```
 2.  **Navigate to the project directory:**
     ```bash
-    cd FairyGlow-Beauty-prototype
+    cd FairyGlow_Beauty
     ```
 3.  **Open `index.html` in your browser:**
     You can do this by right-clicking the file and selecting "Open with..." or by using a simple local server extension like Live Server for VS Code.
